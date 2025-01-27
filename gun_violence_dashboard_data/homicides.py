@@ -85,12 +85,10 @@ class PPDHomicideTotal:
 
         # Get the years from both tables and take the unique ones
         years = []
-        for table in self.tables:
-            years += [
-                int(th.text)
-                for th in table.select_one("thead").select("th")
-                if th.text.startswith("2")
-            ]
+        for th in self.tables[0].select("th"):
+            text = th.text.strip()
+            if text.startswith("2"):
+                years.append(int(text))
 
         return list(sorted(set(years), reverse=True))
 
@@ -116,6 +114,8 @@ class PPDHomicideTotal:
         ]
 
         if len(annual_totals) != len(self.years[1:]):
+            print(self.years)
+            print(annual_totals)
             raise ValueError(
                 "Length mismatch between parsed years and annual homicide totals"
             )
@@ -137,7 +137,7 @@ class PPDHomicideTotal:
 
         # Get YTD total for current year
         API = "https://phillypolice.com/api/stats/homicides"
-        ytd_homicides_this_year = requests.get(API).json()["total"]
+        ytd_homicides_this_year = requests.get(API).json()["currentYearTotal"]
 
         # Get the YTD totals
         ytd_totals = [ytd_homicides_this_year]
@@ -156,6 +156,8 @@ class PPDHomicideTotal:
                 ytd_totals.append(int(value))
 
         if len(ytd_totals) != len(years):
+            print(years)
+            print(ytd_totals)
             raise ValueError("Length mismatch between parsed years and YTD homicides")
 
         # Return ytd totals, sorted in ascending order
