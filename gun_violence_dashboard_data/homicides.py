@@ -4,38 +4,12 @@ Crime Stats website."""
 from dataclasses import dataclass
 from datetime import date
 
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.common.by import By
-from selenium.common.exceptions import TimeoutException
-from selenium.webdriver.support import expected_conditions as EC
-from selenium import webdriver
 import requests
 import pandas as pd
-from bs4 import BeautifulSoup
 from cached_property import cached_property
 from loguru import logger
 
 from . import DATA_DIR
-
-
-def get_webdriver(debug=False):
-    """
-    Initialize a selenium web driver with the specified options.
-
-    Parameters
-    ----------
-    debug: bool
-        Whether to use the headless version of Chrome
-    """
-    # Create the options
-    options = webdriver.ChromeOptions()
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-extensions")
-    options.add_argument("--disable-gpu")
-    if not debug:
-        options.add_argument("--headless")
-
-    return webdriver.Chrome(options=options)
 
 
 @dataclass
@@ -57,111 +31,46 @@ class PPDHomicideTotal:
     URL = "https://www.phillypolice.com/crime-maps-stats/"
 
     def __post_init__(self):
-        # Get the driver
-        driver = get_webdriver(debug=self.debug)
 
-        # Navigate to the page
-        driver.get(self.URL)
-
-        # Wait for the tables to load
-        delay = 5  # seconds
-        try:
-            WebDriverWait(driver, delay).until(
-                EC.presence_of_element_located((By.ID, "stats-content"))
-            )
-
-            # Get the page source
-            self.soup = BeautifulSoup(driver.page_source, "html.parser")
-
-            # Get the two tables on the page
-            self.tables = self.soup.select("table")
-
-        except TimeoutException:
-            raise ValueError("Page took too long to load")
+        # Query the API
+        API = "https://phillypolice.com/api/stats/homicides"
+        self.data = requests.get(API).json()
 
     @cached_property
     def years(self):
         """The years available on the page. Starts with 2007."""
 
-        # Get the years from both tables and take the unique ones
-        years = []
-        for th in self.tables[0].select("th"):
-            text = th.text.strip()
-            if text.startswith("2"):
-                years.append(int(text))
-
-        return list(sorted(set(years), reverse=True))
+        return sorted(self.data["yearToDateTotals"].keys())
 
     @cached_property
     def as_of_date(self):
         """The current "as of" date on the page."""
 
-        # This will be in the form of "Month name Day"
-        date = self.tables[0].select_one("tbody").select_one("tr").select_one("th").text
-
         # Return a datetime object
-        return pd.to_datetime(f"{date} {self.years[0]}" + " 11:59:00")
+        return pd.to_datetime(self.data["lastUpdated"])
 
     @cached_property
     def annual_totals(self):
         """The annual totals for homicides in Philadelphia."""
 
-        # This is for historic data only (doesn't include current year)
-        annual_totals = [
-            int(td.text)
-            for td in self.tables[1].select_one("tbody").select("td")
-            if td.text
-        ]
+        # Get YTD total for current year
+        API = "https://phillypolice.com/api/stats/homicides"
+        data = requests.get(API).json()["fullYearTotals"]
 
-        if len(annual_totals) != len(self.years[1:]):
-            print(self.years)
-            print(annual_totals)
-            raise ValueError(
-                "Length mismatch between parsed years and annual homicide totals"
-            )
-
-        return pd.DataFrame(
-            {"year": self.years[1:], "annual": annual_totals}
-        ).sort_values("year", ascending=False)
+        # Return ytd totals, sorted in ascending order
+        out = pd.DataFrame({"year": data.keys(), "ytd": data.values()})
+        return out.sort_values("year", ascending=False)
 
     @cached_property
     def ytd_totals(self):
         """The year-to-date totals for homicides in Philadelphia."""
 
-        # Years
-        years = [
-            int(th.text)
-            for th in self.tables[0].select_one("thead").select("th")
-            if th.text.startswith("2")
-        ]
-
         # Get YTD total for current year
         API = "https://phillypolice.com/api/stats/homicides"
-        ytd_homicides_this_year = requests.get(API).json()["currentYearTotal"]
-
-        # Get the YTD totals
-        ytd_totals = [ytd_homicides_this_year]
-
-        # Get the tds
-        tds = self.tables[0].select_one("tbody").select("td")
-
-        # Get the last number of years
-        nyears_minus_one = len(years) - 1
-        tds = tds[-nyears_minus_one:]
-
-        # Get the years
-        for td in tds:
-            value = td.text
-            if value:
-                ytd_totals.append(int(value))
-
-        if len(ytd_totals) != len(years):
-            print(years)
-            print(ytd_totals)
-            raise ValueError("Length mismatch between parsed years and YTD homicides")
+        data = requests.get(API).json()["yearToDateTotals"]
 
         # Return ytd totals, sorted in ascending order
-        out = pd.DataFrame({"year": years, "ytd": ytd_totals})
+        out = pd.DataFrame({"year": data.keys(), "ytd": data.values()})
         return out.sort_values("year", ascending=False)
 
     @property
@@ -178,25 +87,8 @@ class PPDHomicideTotal:
         # Make sure it's in ascending order by date
         return df.sort_values("date", ascending=True)
 
-    def _get_years_from_year_end_section(self):
-        return [
-            int(th.text)
-            for th in self.tables[1].select_one("thead").select("th")
-            if th.text.startswith("2")
-        ]
-
     def update(self, force=False):
         """Update the local data via scraping the PPD website."""
-
-        # Check for new year's
-        year_end_years = self._get_years_from_year_end_section()
-        max_year_end_year = max(year_end_years)
-
-        thisYear = date.today().year
-        if thisYear != max_year_end_year + 1:
-            raise ValueError(
-                f"It seems like we are in a new year {thisYear} but the homicide page hasn't been updated yet"
-            )
 
         # Load the database
         database = self.get()
