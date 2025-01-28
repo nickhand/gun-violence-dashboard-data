@@ -47,7 +47,8 @@ class PPDHomicideTotal:
         """The current "as of" date on the page."""
 
         # Return a datetime object
-        return pd.to_datetime(self.data["lastUpdated"])
+        dt = pd.to_datetime(self.data["lastUpdated"])
+        return pd.to_datetime(f"{dt.strftime('%Y-%m-%d')} 11:59:00")
 
     @cached_property
     def annual_totals(self):
@@ -58,7 +59,7 @@ class PPDHomicideTotal:
         data = requests.get(API).json()["fullYearTotals"]
 
         # Return ytd totals, sorted in ascending order
-        out = pd.DataFrame({"year": data.keys(), "ytd": data.values()})
+        out = pd.DataFrame({"year": data.keys(), "total": data.values()})
         return out.sort_values("year", ascending=False)
 
     @cached_property
