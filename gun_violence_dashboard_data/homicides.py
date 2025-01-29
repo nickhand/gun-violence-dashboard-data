@@ -59,7 +59,7 @@ class PPDHomicideTotal:
         data = requests.get(API).json()["fullYearTotals"]
 
         # Return ytd totals, sorted in ascending order
-        out = pd.DataFrame({"year": data.keys(), "total": data.values()})
+        out = pd.DataFrame({"year": data.keys(), "annual": data.values()})
         return out.sort_values("year", ascending=False)
 
     @cached_property
