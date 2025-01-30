@@ -1,15 +1,43 @@
-"""Scrape the total homicide count from the Philadelphia Police Department's 
-Crime Stats website."""
+"""
+Scrape the total homicide count from the Philadelphia Police Department's 
+Crime Stats website.
+"""
 
 from dataclasses import dataclass
 from datetime import date
 
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.common.by import By
+from selenium.common.exceptions import TimeoutException
+from selenium.webdriver.support import expected_conditions as EC
+from selenium import webdriver
 import requests
 import pandas as pd
+from bs4 import BeautifulSoup
 from cached_property import cached_property
 from loguru import logger
 
 from . import DATA_DIR
+
+
+def get_webdriver(debug=False):
+    """
+    Initialize a selenium web driver with the specified options.
+
+    Parameters
+    ----------
+    debug: bool
+        Whether to use the headless version of Chrome
+    """
+    # Create the options
+    options = webdriver.ChromeOptions()
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-extensions")
+    options.add_argument("--disable-gpu")
+    if not debug:
+        options.add_argument("--headless")
+
+    return webdriver.Chrome(options=options)
 
 
 @dataclass
@@ -28,50 +56,94 @@ class PPDHomicideTotal:
 
     debug: bool = False
 
-    URL = "https://www.phillypolice.com/crime-maps-stats/"
+    URL = "https://www.phillypolice.com/crime-data/crime-statistics/"
 
     def __post_init__(self):
 
-        # Query the API
-        API = "https://phillypolice.com/api/stats/homicides"
-        self.data = requests.get(API).json()
+        # Get the driver
+        driver = get_webdriver(debug=self.debug)
 
-    @cached_property
-    def years(self):
-        """The years available on the page. Starts with 2007."""
+        # Navigate to the page
+        driver.get(self.URL)
 
-        return sorted(self.data["yearToDateTotals"].keys())
+        # Wait for the tables to load
+        delay = 5  # seconds
+        try:
+            WebDriverWait(driver, delay).until(
+                EC.presence_of_element_located((By.CLASS_NAME, "container-crime"))
+            )
+
+            # Get the page source
+            self.soup = BeautifulSoup(driver.page_source, "html.parser")
+
+        except TimeoutException:
+            raise ValueError("Page took too long to load")
 
     @cached_property
     def as_of_date(self):
         """The current "as of" date on the page."""
 
-        # Return a datetime object
-        dt = pd.to_datetime(self.data["lastUpdated"])
-        return pd.to_datetime(f"{dt.strftime('%Y-%m-%d')} 11:59:00")
+        # Get the month and year from YTD table
+        month_day = (
+            self.soup.select_one(".crime-title")
+            .select_one("span.crime-text")
+            .text.split("to")[-1]
+            .strip()
+        )
+
+        # Get the year
+        year = int(
+            self.soup.select_one(".container-crime.year-to-date")
+            .select_one(".data-heading")
+            .text.strip()
+        )
+        return pd.to_datetime(f"{month_day} {year} 11:59:00")
 
     @cached_property
     def annual_totals(self):
         """The annual totals for homicides in Philadelphia."""
 
-        # Get YTD total for current year
-        API = "https://phillypolice.com/api/stats/homicides"
-        data = requests.get(API).json()["fullYearTotals"]
+        # Years
+        years = [
+            int(div.text.strip())
+            for div in self.soup.select_one(".container-crime.full-year").select(
+                ".data-heading"
+            )
+        ]
 
+        # YTD totals
+        totals = [
+            int(div.text.strip())
+            for div in self.soup.select_one(".container-crime.full-year").select(
+                ".counted-data"
+            )
+        ]
         # Return ytd totals, sorted in ascending order
-        out = pd.DataFrame({"year": data.keys(), "annual": data.values()})
+        out = pd.DataFrame({"year": years, "annual": totals})
         return out.sort_values("year", ascending=False)
 
     @cached_property
     def ytd_totals(self):
         """The year-to-date totals for homicides in Philadelphia."""
 
-        # Get YTD total for current year
-        API = "https://phillypolice.com/api/stats/homicides"
-        data = requests.get(API).json()["yearToDateTotals"]
+        # Years
+        years = [
+            int(div.text.strip())
+            for div in self.soup.select_one(".container-crime.year-to-date").select(
+                ".data-heading"
+            )
+        ]
+
+        # YTD totals
+        totals = [
+            int(div.text.strip())
+            for div in self.soup.select_one(".container-crime.year-to-date").select(
+                ".counted-data"
+            )
+        ]
 
         # Return ytd totals, sorted in ascending order
-        out = pd.DataFrame({"year": data.keys(), "ytd": data.values()})
+        out = pd.DataFrame({"year": years, "ytd": totals})
         return out.sort_values("year", ascending=False)
 
     @property
