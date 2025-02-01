@@ -317,6 +317,9 @@ class ShootingVictimsData:
         # Raw data from carto
         df = carto2gpd.get(self.ENDPOINT, self.TABLE_NAME)
 
+        # Remove officer involved
+        df = df.query("officer_involved == 'N'")
+
         # Verify DC key first
         missing_dc_keys = df["dc_key"].isnull()
         if missing_dc_keys.sum() and not self.ignore_checks:
