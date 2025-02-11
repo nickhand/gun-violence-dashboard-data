@@ -63,7 +63,7 @@ def upload_to_s3(data, filename):
             fout.write(json_bytes)
 
         # Upload to s3
-        BUCKET = "gun-violence-dashboard"
+        BUCKET = "philly-gun-violence-map"
         s3.upload_file(
             tmpfile,
             BUCKET,

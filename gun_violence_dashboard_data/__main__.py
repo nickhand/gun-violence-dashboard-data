@@ -19,7 +19,7 @@ from .streets import StreetHotSpots
 def cli():
     """Processing data for the Controller's Office gun violence dashboard.
 
-    https://controller.phila.gov/philadelphia-audits/mapping-gun-violence/#/
+    https://nickhand.dev/philly-gun-violence-map
     """
     pass
 

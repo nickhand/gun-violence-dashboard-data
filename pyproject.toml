@@ -6,7 +6,7 @@ authors = ["Nick Hand <nicholas.adam.hand@gmail.com>"]
 license = "MIT"
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = "^3.9"
 pandas = "*"
 numpy = "*"
 geopandas = "*"
