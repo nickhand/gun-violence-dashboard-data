@@ -1,8 +1,8 @@
 [tool.poetry]
 name = "gun-violence-dashboard-data"
 version = "0.1.0"
-description = "Python toolkit for preprocessing data for the City Controller's Gun Violence Dashboard"
-authors = ["Nick Hand <nick.hand@phila.gov>"]
+description = "Python toolkit for preprocessing data for Philadelphia Gun Violence Dashboard"
+authors = ["Nick Hand <nicholas.adam.hand@gmail.com>"]
 license = "MIT"
 
 [tool.poetry.dependencies]
@@ -18,7 +18,7 @@ rtree = "*"
 requests = "*"
 bs4 = "*"
 cached-property = "*"
-phl-courts-scraper = {git = "https://github.com/PhilaController/phl-courts-scraper", branch = "master"}
+phl-courts-scraper = { git = "https://github.com/nickhand/phl-courts-scraper", branch = "master" }
 esri2gpd = "*"
 xlrd = "*"
 tryagain = "^1.0"
