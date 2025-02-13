@@ -38,7 +38,7 @@ def run(
     if DATA_PATH.exists():
 
         # Existing
-        existing = pd.read_csv(DATA_PATH)
+        existing = pd.read_csv(DATA_PATH, dtype={"dc_key": str})
 
         # NOTE: We can remove incident numbers that we know have a court case already
         data_to_remove = existing[existing["has_court_case"] == True]
