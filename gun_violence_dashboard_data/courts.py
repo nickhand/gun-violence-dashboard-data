@@ -51,7 +51,7 @@ def run(
     logger.info(f"Scraping {len(incident_numbers)} incident numbers")
 
     # Get the folder on s3 for this run
-    date_string = datetime.today().strftime("%y-%m-%d")
+    date_string = datetime.today().strftime("%y-%m-%d %H_%M_%S")
     s3_subfolder = f"courts-data/{date_string}"
     input_filename = f"s3://{BUCKET_NAME}/{s3_subfolder}/incident_numbers.csv"
 
