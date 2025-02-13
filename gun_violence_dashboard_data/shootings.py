@@ -17,8 +17,8 @@ from loguru import logger
 from pydantic import BaseModel, Field, validator
 from shapely.geometry import Point
 
-from . import DATA_DIR, EPSG
-from .courts import CourtInfoByIncident
+from . import BUCKET_NAME, DATA_DIR, EPSG
+from .courts import merge as merge_court_info
 from .geo import *
 from .streets import StreetHotSpots
 from .utils import validate_data_schema
@@ -63,10 +63,9 @@ def upload_to_s3(data, filename):
             fout.write(json_bytes)
 
         # Upload to s3
-        BUCKET = "philly-gun-violence-map"
         s3.upload_file(
             tmpfile,
-            BUCKET,
+            BUCKET_NAME,
             filename,
             ExtraArgs={
                 "ContentType": "application/json",
@@ -398,10 +397,9 @@ class ShootingVictimsData:
 
         # Value-added info for hot spots and court info
         hotspots = StreetHotSpots(debug=self.debug)
-        courts = CourtInfoByIncident(debug=self.debug)
         df = (
             df.pipe(hotspots.merge)
-            .pipe(courts.merge)
+            .pipe(merge_court_info, debug=self.debug)
             .assign(segment_id=lambda df: df.segment_id.replace("", np.nan))
         )
 

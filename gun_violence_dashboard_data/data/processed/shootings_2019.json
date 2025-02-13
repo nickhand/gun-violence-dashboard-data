@@ -1,5 +1,6 @@
 {
 "type": "FeatureCollection",
+"name": "shootings_2019",
 "crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
 "features": [
 { "type": "Feature", "properties": { "dc_key": "201902071729", "race": "H", "sex": "F", "fatal": true, "date": "2019/12/31 17:25:00", "age_group": "31 to 45", "has_court_case": false, "age": 36.0, "street_name": "FRONTENAC ST", "block_number": 5600.0, "zip_code": "19124", "council_district": "9", "police_district": "2", "neighborhood": "Lawndale-Crescentville", "school_name": "Laura H. Carnell School", "house_district": "203", "senate_district": "2", "segment_id": "6361" }, "geometry": { "type": "Point", "coordinates": [ -75.089704, 40.031746 ] } },

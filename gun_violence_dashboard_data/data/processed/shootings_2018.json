@@ -1,5 +1,6 @@
 {
 "type": "FeatureCollection",
+"name": "shootings_2018",
 "crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
 "features": [
 { "type": "Feature", "properties": { "dc_key": "201825101756", "race": "H", "sex": "M", "fatal": false, "date": "2018/12/30 22:35:00", "age_group": "18 to 30", "has_court_case": false, "age": 19.0, "street_name": "W ERIE AVE", "block_number": 600.0, "zip_code": "19140", "council_district": "7", "police_district": "25", "neighborhood": "Hunting Park-Fairhill", "school_name": "Bayard Taylor School", "house_district": "197", "senate_district": "3", "segment_id": "21420" }, "geometry": { "type": "Point", "coordinates": [ -75.139438, 40.007823 ] } },

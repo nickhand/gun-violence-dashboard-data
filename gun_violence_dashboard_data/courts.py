@@ -1,71 +1,141 @@
 """Scrape court information from the PA's Unified Judicial System portal."""
-from dataclasses import dataclass
 
-import numpy as np
+from datetime import datetime
+
+import click
 import pandas as pd
 import simplejson as json
+from dotenv import find_dotenv, load_dotenv
 from loguru import logger
-from phl_courts_scraper.portal import UJSPortalScraper
+from phl_courts_scraper_batch.__main__ import scrape
+from s3fs import S3FileSystem
 
-from . import DATA_DIR
+from . import BUCKET_NAME, DATA_DIR
+
+# This is where scraping results are saved
+DATA_PATH = DATA_DIR / "processed" / "scraped_courts_data.csv"
 
 
-@dataclass
-class CourtInfoByIncident:
-    """
-    Court information for shooting incidents scraped from the
-    PA's Unified Judicial System.
-    """
+def run(
+    data,
+    dry_run=False,
+    sample=None,
+    log_freq=10,
+    seed=42,
+    sleep=2,
+    ntasks=10,
+    debug=False,
+):
+    """Run the courts scraper."""
 
-    sleep: int = 2
-    debug: bool = False
+    # Load the environment variables
+    load_dotenv(find_dotenv())
 
-    def __post_init__(self):
+    # Get the unique set of DC numbers
+    incident_numbers = data[["dc_key"]].drop_duplicates()
 
-        # Initialize the scraper
-        self.scraper = UJSPortalScraper(sleep=self.sleep)
+    # Load any existing data
+    if DATA_PATH.exists():
 
-    @property
-    def path(self):
-        return DATA_DIR / "raw" / "scraped_courts_data.json"
+        # Existing
+        existing = pd.read_csv(DATA_PATH)
 
-    def get(self):
-        """Get the shooting victims data, either loading
-        the currently downloaded version or a fresh copy."""
+        # NOTE: We can remove incident numbers that we know have a court case already
+        data_to_remove = existing[existing["has_court_case"] == True]
 
-        return pd.read_json(self.path)
+        # Remove these from the incident numbers
+        sel = incident_numbers["dc_key"].isin(data_to_remove["dc_key"])
+        incident_numbers = incident_numbers[~sel]
 
-    def merge(self, data):
-        """Merge courts data."""
+    # Log
+    logger.info(f"Scraping {len(incident_numbers)} incident numbers")
 
-        # Load raw courts data and existing dc keys
-        courts = self.get()
-        existing_dc_keys = ("20" + courts["dc_number"]).unique()
+    # Get the folder on s3 for this run
+    date_string = datetime.today().strftime("%y-%m-%d")
+    s3_subfolder = f"courts-data/{date_string}"
+    input_filename = f"s3://{BUCKET_NAME}/{s3_subfolder}/incident_numbers.csv"
 
-        if self.debug:
-            logger.debug("Merging in court case information")
+    # Initialize the s3 file system
+    s3 = S3FileSystem()
 
-        out = data.copy()
-        return out.assign(
-            has_court_case=lambda df: np.select(
-                [df.dc_key.isin(existing_dc_keys)], [True], default=False
-            )
+    # Save the incident numbers to s3
+    with s3.open(input_filename, "w") as f:
+        incident_numbers.to_csv(f, header=None)
+
+    # Output folder
+    output_folder = f"s3://{BUCKET_NAME}/{s3_subfolder}/results"
+
+    # Loag
+    logger.info(f"Uploaded incident numbers to {input_filename}")
+    logger.info(f"Output will be saved to {output_folder}")
+
+    # Set up the arguments
+    kwargs = dict(
+        flavor="portal",
+        input_filename=input_filename,
+        output_folder=output_folder,
+        search_by="Incident Number",
+        browser="firefox",
+        dry_run=dry_run,
+        sample=sample,
+        log_freq=log_freq,
+        seed=seed,
+        sleep=sleep,
+        aws=True,
+        ntasks=ntasks,
+        no_wait=False,
+        debug=debug,
+    )
+
+    # Call the scrape function
+    ctx = click.Context(scrape)
+    ctx.invoke(scrape, **kwargs)
+
+    # Invalidate cache
+    s3.invalidate_cache()
+
+    # Get the scraped results
+    with s3.open(f"{output_folder}/portal_results.json", "r") as f:
+        results = json.load(f)
+
+    # Get the input incident numbers
+    with s3.open(f"{output_folder}/portal_input.csv", "r") as f:
+        output = pd.read_csv(f, header=None, names=["dc_key"], dtype=str)
+
+    # Extract the dc_numbers from the results
+    dc_numbers_with_cases = (
+        pd.DataFrame(
+            {"dc_key": ["20" + rr["dc_number"] for r in results for rr in r]}, dtype=str
         )
+        .drop_duplicates()
+        .assign(has_court_case=True)
+    )
 
-    def update(self, shootings, chunk=None, dry_run=False):
-        """Scrape the courts portal."""
+    # Combine the results!
+    output = output.merge(dc_numbers_with_cases, on="dc_key", how="left").assign(
+        has_court_case=lambda df: df.has_court_case.fillna(False)
+    )
 
-        # Get the incident numbers
-        incident_numbers = shootings["dc_key"].tolist()
+    # Update the saved data
+    output.to_csv(DATA_PATH, index=False)
 
-        # Scrape the results
-        results = self.scraper.scrape_portal_data(incident_numbers)
-        results = [val for sublist in results for val in sublist]
+    # Return
+    return output
 
-        # Save
-        if not dry_run:
-            if chunk is None:
-                filename = "scraped_courts_data.json"
-            else:
-                filename = f"scraped_courts_data_{chunk}.json"
-            json.dump(results, (DATA_DIR / "raw" / filename).open("w"))
+
+def merge(data, debug=False):
+    """Merge courts data."""
+
+    # Load existing data
+    existing = pd.read_csv(DATA_PATH, dtype={"dc_key": str})
+
+    if debug:
+        logger.debug("Merging in court case information")
+
+    # Make a copy
+    out = data.copy()
+
+    # Return the merge and fill missing ones with False
+    return out.merge(existing, on="dc_key", how="left").assign(
+        has_court_case=lambda df: df["has_court_case"].fillna(False)
+    )

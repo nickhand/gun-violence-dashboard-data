@@ -18,7 +18,7 @@ rtree = "*"
 requests = "*"
 bs4 = "*"
 cached-property = "*"
-phl-courts-scraper = { git = "https://github.com/nickhand/phl-courts-scraper", branch = "master" }
+phl-courts-scraper-batch = { git = "https://github.com/nickhand/phl-courts-scraper-batch", branch = "main" }
 esri2gpd = "*"
 xlrd = "*"
 tryagain = "^1.0"

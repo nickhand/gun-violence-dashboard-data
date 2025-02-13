@@ -1,14 +1,22 @@
 """The main command line module that defines the "gv_dashboard_data" tool."""
+
 import datetime
 
 import click
-import numpy as np
 import simplejson as json
 from loguru import logger
 
 from . import DATA_DIR
-from .courts import CourtInfoByIncident
-from .geo import *
+from .courts import run as run_courts_scraper
+from .geo import (
+    get_council_districts,
+    get_neighborhoods,
+    get_pa_house_districts,
+    get_pa_senate_districts,
+    get_police_districts,
+    get_school_catchments,
+    get_zip_codes,
+)
 from .homicides import PPDHomicideTotal
 from .shootings import ShootingVictimsData, load_existing_shootings_data
 from .streets import StreetHotSpots
@@ -56,7 +64,6 @@ def save_geojson_layers(debug=False):
             logger.debug(f"Saving {filename}")
 
         func().to_crs(epsg=4326).to_file(path, driver="GeoJSON")
-
 
 
 @cli.command()
@@ -147,23 +154,14 @@ def daily_update(
 
 @cli.command()
 @click.option(
-    "--nprocs",
+    "--ntasks",
     type=int,
     default=1,
-    help="If running in parallel, the total number of processes that will run.",
-)
-@click.option(
-    "--pid",
-    type=int,
-    default=0,
-    help=(
-        "If running in parallel, the local process id."
-        "This should be between 0 and number of processes."
-    ),
+    help="The number of tasks to use on AWS",
 )
 @click.option(
     "--sleep",
-    default=7,
+    default=2,
     help="Total waiting time b/w scraping calls (in seconds)",
     type=int,
 )
@@ -175,58 +173,38 @@ def daily_update(
     default=None,
     help="Only run a random sample of incident numbers.",
 )
-def scrape_courts_portal(nprocs, pid, sleep, debug, sample, dry_run):
-    """Scrape courts information from the PA's Unified Judicial System's portal.
-
-    This can be run in parallel by specifying a total
-    number of processes and a specific chunk to run.
+@click.option(
+    "--log-freq",
+    default=10,
+    help="Log frequency within loop of scraping",
+    type=int,
+)
+@click.option(
+    "--seed",
+    type=int,
+    default=42,
+    help="Random seed for sampling",
+)
+def scrape_courts_portal(
+    ntasks=1, sleep=2, debug=False, sample=None, dry_run=False, log_freq=10, seed=42
+):
+    """
+    Scrape courts information from the PA's Unified Judicial System's portal.
     """
     # Load the existing data
     shootings = load_existing_shootings_data()
 
-    # Drop duplicates
-    shootings = shootings.drop_duplicates(subset=["dc_key"])
-
-    # Sample?
-    if sample is not None:
-        shootings = shootings.sample(sample)
-
-    # Split
-    assert pid < nprocs
-    if nprocs > 1:
-        shootings_chunk = np.array_split(shootings, nprocs)[pid]
-        chunk = pid
-    else:
-        shootings_chunk = shootings
-        chunk = None
-
-    # Scrape courts info
-    courts_data = CourtInfoByIncident(debug=debug, sleep=sleep)
-    courts_data.update(shootings_chunk, chunk=chunk, dry_run=dry_run)
-
-
-@cli.command()
-@click.option("--debug", is_flag=True, help="Whether to log debug statements.")
-@click.option("--dry-run", is_flag=True, help="Do not save the results; dry run only.")
-def finalize_courts_scraping(debug, dry_run):
-    """Finalize courts scraping by combining scraping results
-    computed in parallel.
-
-    This updates the "scraped_courts_data.json" data file.
-    """
-
-    # Load the shootings data
-    data_path = DATA_DIR / "raw"
-    files = data_path.glob("scraped_courts_data_*.json")
-
-    combined = []
-    for f in sorted(files):
-        if debug:
-            logger.debug(f"Combining file: '{f}'")
-        combined += json.load(f.open("r"))
-
-    if not dry_run:
-        json.dump(combined, (DATA_DIR / "raw" / "scraped_courts_data.json").open("w"))
+    # Run the scraper
+    run_courts_scraper(
+        shootings,
+        dry_run=dry_run,
+        sample=sample,
+        log_freq=log_freq,
+        seed=seed,
+        sleep=sleep,
+        ntasks=ntasks,
+        debug=debug,
+    )
 
 
 if __name__ == "__main__":
