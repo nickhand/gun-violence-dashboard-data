@@ -365,6 +365,12 @@ class ShootingVictimsData:
         sel = df.race.isin(main_race_categories)
         df.loc[~sel, "race"] = "Other/Unknown"
 
+        # Remove dates in the future
+        future_dates = pd.to_datetime(df.date) > pd.Timestamp.now()
+        if future_dates.sum() > 0:
+            logger.warning(f"Found {future_dates.sum()} future date(s) in the data")
+            df = df.loc[~future_dates].reset_index(drop=True)
+
         # CHECKS
         if not self.ignore_checks:
             old_df = load_existing_shootings_data()

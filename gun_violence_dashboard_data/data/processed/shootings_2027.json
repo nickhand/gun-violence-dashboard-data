@@ -1,8 +1,0 @@
-{
-"type": "FeatureCollection",
-"name": "shootings_2027",
-"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
-"features": [
-{ "type": "Feature", "properties": { "dc_key": "202509062283", "race": "B", "sex": "F", "fatal": false, "date": "2027/05/26 22:27:00", "age_group": "18 to 30", "has_court_case": false, "age": 18.0, "street_name": "LEMON HILL DR", "block_number": 800.0, "zip_code": "19130", "council_district": "5", "police_district": "9", "neighborhood": "Park", "school_name": "Robert Morris School", "house_district": "195", "senate_district": "1", "segment_id": "9006" }, "geometry": { "type": "Point", "coordinates": [ -75.18787, 39.970805 ] } }
-]
-}
