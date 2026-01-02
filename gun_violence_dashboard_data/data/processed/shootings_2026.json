@@ -1,0 +1,8 @@
+{
+"type": "FeatureCollection",
+"name": "shootings_2026",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+"features": [
+{ "type": "Feature", "properties": { "dc_key": "202622000005", "race": "B", "sex": "M", "fatal": false, "date": "2026/01/01 00:17:00", "age_group": "18 to 30", "has_court_case": false, "age": 21.0, "street_name": "W HUNTINGDON ST", "block_number": 2900.0, "zip_code": "19132", "council_district": "5", "police_district": "22", "neighborhood": "Strawberry Mansion", "school_name": "Dr. Ethel Allen School", "house_district": "195", "senate_district": "7", "segment_id": "21756" }, "geometry": { "type": "Point", "coordinates": [ -75.178956, 39.995453 ] } }
+]
+}
